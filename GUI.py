@@ -1,27 +1,51 @@
 from tkinter import *
 import tkinter.font as font
 from tkinter import messagebox
+import serial
+import struct
+import time
+import sys
 #--------------------------------------------------------------------------------#
 #functions
+def stopCommand():
+    endFreqEnt.delete(0, END)
+    startFreqEnt.delete(0, END)
+    singleFreqEnt.delete(0, END)
+    with serial.Serial(port='COM6', baudrate=115200) as s:
+        s.write(struct.pack('<B',0x65))
+
 def fsCommand():
-    end = endFreqEnt.get()
-    start = startFreqEnt.get()
-    return messagebox.showinfo('message',f"Start frequency: {start} \n End frequency: {end}")
+    with serial.Serial(port='COM6', baudrate=115200) as s:
+        if (mode == "Sweep"):
+            end = int(endFreqEnt.get())
+            start = int(startFreqEnt.get())
+            endStep = round(end*2048*0.000004078)
+            startStep = round(start*2048*0.000004078)
+            s.write(struct.pack('<BBB',endStep,startStep,0x73))
+    
+        elif (mode == "Single"):
+            freq = int(singleFreqEnt.get())
+            freqStep = round(freq*2048*0.000004078)
+            print(freqStep)
+            s.write(struct.pack('<BB',freqStep,0x73))
+            
+        return 
     
 def modeSingle():
     singleFreqEnt.config(state= "normal")
     endFreqEnt.config(state= "disabled")
     startFreqEnt.config(state= "disabled")
+    global mode
+    mode = "Single"
     return
     
 def modeSweep():
     endFreqEnt.config(state= "normal")
     startFreqEnt.config(state= "normal")
     singleFreqEnt.config(state= "disabled")
-    return
-
-
-    
+    global mode 
+    mode = "Sweep"
+    return    
 #--------------------------------------------------------------------------------#
 #main window
 win=Tk() #creating the main window and storing the window object in 'win'
@@ -46,14 +70,14 @@ r1=Radiobutton(mFrame, text='Single frequency', variable=var, value=1,width=14,c
 r2=Radiobutton(mFrame, text='Frequency sweep', variable=var, value=2,width=14,command=modeSweep).grid(row=0,column=1)
 #--------------------------------------------------------------------------------#
 #Amplitude 
-gLabel=LabelFrame(win,text="General")
-gLabel.place(x=5,y=75,height = 50,width=275)
+#gLabel=LabelFrame(win,text="General")
+#gLabel.place(x=5,y=75,height = 50,width=275)
 
-amplitudeLab=Label(gLabel,text='Amplitude:')
-amplitudeLab.place(x=5,y=0)
+#amplitudeLab=Label(gLabel,text='Amplitude:')
+#amplitudeLab.place(x=5,y=0)
 
-sb = Spinbox(gLabel, from_ = 1, to = 5) 
-sb.place(x=100,y=0)
+#sb = Spinbox(gLabel, from_ = 1, to = 5) 
+#sb.place(x=100,y=0)
 
 #--------------------------------------------------------------------------------#
 #frequency sweep
@@ -89,7 +113,11 @@ singleFreqEnt.config(state= "disabled")
 #------------------------------------------------------------------------------#
 #button
 fsBtn = Button(win, text="run", command=fsCommand)
-fsBtn.place(x=100,y=250,width=100)
+fsBtn.place(x=50,y=250,width=100)
+#------------------------------------------------------------------------------#
+#button
+endBtn = Button(win, text="Stop", command=stopCommand)
+endBtn.place(x=150,y=250,width=100)
 #------------------------------------------------------------------------------#
 #main loop
 
