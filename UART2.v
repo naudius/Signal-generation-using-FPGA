@@ -98,7 +98,6 @@ always@(posedge ipClk) begin
 				end
 			end
 			Receiving: begin
-				opRxData <= 8'hf0;
 				if (RxCount < 7) begin
 					RxData[RxCount] <= ipRx;
 					RxCount <= RxCount +1;

@@ -1,5 +1,5 @@
 module ClockDivider#(
-    parameter DIVISOR=50
+    parameter DIVISOR=5
 	)(
 	input  wire ipClk,
 	output reg  opClk

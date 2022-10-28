@@ -1,14 +1,13 @@
 module 	DAC#(
 	parameter WIDTH = 10,
-	parameter DEPTH = 4
+	parameter DEPTH = 1024,
+	parameter INIT_F="C:/Users/Willem/Desktop/FYP/Core/RadarApplication/SineLookup.txt"
 	)(
 	input wire     	   	ipClk, 
-	input wire [9:0]	ipData,
-	input wire		   	ipReset,
 	input wire [1:0]  	ipControl,
+	input wire		   	ipReset,
+	input wire [7:0]   ipFreq,
 	
-	output reg   		opLDAC,
-	output reg 		   	opSync,
 	output wire		   	opSCK,
 	output reg			opCS,
 	output reg			opSDI
@@ -23,11 +22,16 @@ logic [WIDTH-1:0] memory [DEPTH];
 reg [4:0] 	bitCounter 	= 0;
 reg [3:0]	cofigBits	= 4'b0000; // [{0=Write;1=Ignore},{1=Buff;0=Unbuff},{1=1x;0=2x},{1=Active;0=Shutdown}]
 reg [15:0]	DAC_Data   	= 0;
-reg [9:0]  Sine = 10'b1111111110;
-reg [3:0]  sineCounter = 0;
-reg [31:0] sineStep = 1;
+reg [9:0]  Sine = 10'b0;
+reg 		upDown = 0;
+reg [10:0] sineCounter = 1000; // count from 100 to avoid overflow 
+reg [7:0] sineStep = 1;
 
 enum{ Busy =0, Stop=1} DacState; //transmitter states
+
+initial begin	
+    $readmemb(INIT_F, memory);
+end
 
 always@(negedge opSCK) begin
 	case (DacState) 
@@ -36,20 +40,29 @@ always@(negedge opSCK) begin
 				DacState    <= Stop;
 			end else if (ipControl == 2'b01) begin
 				if (bitCounter < 16) begin
-					opSync <= 0;
 					opCS 		<= 0;
 					opSDI <= DAC_Data[bitCounter];
 					bitCounter <= bitCounter+1;
 				end else begin
 					opCS <= 1;
-					opSync <= 1;
+					sineStep <= ipFreq;
 					bitCounter 	<= 0;
-					if(sineCounter < DEPTH-1) begin
-						sineCounter <= sineCounter + sineStep;
-					end else begin
-						sineCounter <= 0;
+					if (upDown == 0) begin
+						if(sineCounter < 1000+DEPTH-sineStep) begin
+							sineCounter <= sineCounter + sineStep;
+						end else begin
+							sineCounter <= 1000+DEPTH-1;
+							upDown <= ~upDown;
+						end
+					end else if (upDown == 1) begin
+						if(sineCounter > 1000+sineStep) begin
+							sineCounter <= sineCounter - sineStep;
+						end else begin
+							sineCounter <= 1000;
+							upDown <= ~upDown;
+						end
 					end
-					Sine <= memory[sineCounter];
+					Sine <= memory[sineCounter-1000];
 					cofigBits 	<= 4'b1100;
 					DAC_Data 	<= {2'b00,Sine,cofigBits};
 				end
@@ -57,17 +70,14 @@ always@(negedge opSCK) begin
 		end
 		Stop : begin
 			opCS 		<= 1; //46 bot
-			opSync <= 0; //37 top
 			opSDI <= 0;
-			memory[0] <= 10'b1111111110;
-			memory[1] <= 10'b1111111111;
-			memory[2] <= 10'b1111111110;	
-			memory[3] <= 10'b0000000000;
 			if (ipControl == 2'b01) begin
+				sineStep <= ipFreq;
 				bitCounter 	<= 0;
+				upDown <= 0;
 				opCS 		<= 0;
-				sineCounter <= 0;
-				Sine <= memory[sineCounter];
+				sineCounter <= 100;
+				Sine <= memory[sineCounter-100];
 				cofigBits 	<= 4'b1100;
 				DAC_Data 	<= {2'b00,Sine,cofigBits};
 				DacState <= Busy;
