@@ -8,43 +8,72 @@ import sys
 #--------------------------------------------------------------------------------#
 #functions
 def stopCommand():
-    endFreqEnt.delete(0, END)
-    startFreqEnt.delete(0, END)
-    singleFreqEnt.delete(0, END)
+    endFreqEnt.config(state= "normal")
+    periodFreqEnt.config(state= "normal")
+    startFreqEnt.config(state= "normal")
     with serial.Serial(port='COM6', baudrate=115200) as s:
-        s.write(struct.pack('<B',0x65))
+        s.write(struct.pack('<BB',0xFF,0xFD))
 
-def fsCommand():
-    with serial.Serial(port='COM6', baudrate=115200) as s:
-        if (mode == "Sweep"):
-            end = int(endFreqEnt.get())
-            start = int(startFreqEnt.get())
-            endStep = round(end*2048*0.000004078)
-            startStep = round(start*2048*0.000004078)
-            s.write(struct.pack('<BBB',endStep,startStep,0x73))
+def freqHigh():#function of the button
+    tkinter.messagebox.showinfo("frequency too high")
     
-        elif (mode == "Single"):
-            freq = int(singleFreqEnt.get())
-            freqStep = round(freq*2048*0.000004078)
-            print(freqStep)
-            s.write(struct.pack('<BB',freqStep,0x73))
-            
-        return 
-    
-def modeSingle():
-    singleFreqEnt.config(state= "normal")
+def freqLow():#function of the button
+    tkinter.messagebox.showinfo("frequency too low")
+
+def periodLow():#function of the button
+    tkinter.messagebox.showinfo("sweep period too low")
+
+def startCommand():
     endFreqEnt.config(state= "disabled")
+    periodFreqEnt.config(state= "disabled")
     startFreqEnt.config(state= "disabled")
+    with serial.Serial(port='COM6', baudrate=115200) as s:
+        if (mode == "Saw"):
+            end = int(endFreqEnt.get())
+            if (end> 30000) :
+               freqHigh()
+            start = int(startFreqEnt.get())
+            if (start < 120) :
+               freqLow()
+            Tm = int(periodFreqEnt.get())
+            if (Tm < 4.078) :
+                periodLow()
+            Tm = Tm/4.078
+            startStep = round(start*2048*0.000004078)
+            endStep = round(end*2048*0.000004078)
+            freqMod = round((endStep-startStep)/Tm)
+            print(startStep,endStep,freqMod)
+            s.write(struct.pack('<BBBBB',0xFF,0x00,startStep,endStep,freqMod))
+            
+        if (mode == "Triangle"):
+            end = int(endFreqEnt.get())
+            if (end> 30000) :
+               freqHigh()
+            start = int(startFreqEnt.get())
+            if (start < 120) :
+               freqLow()
+            Tm = int(periodFreqEnt.get())
+            if (Tm < 4.078) :
+                periodLow()
+            Tm = Tm/4.078
+            startStep = round(start*2048*0.000004078)
+            endStep = round(end*2048*0.000004078)
+            freqMod = round((endStep-startStep)/Tm)
+            print(startStep,endStep,freqMod,"Tri")
+            s.write(struct.pack('<BBBBB',0xFF,0xFE,startStep,endStep,freqMod))
+        return 
+
+    return 
+        
+    
+def modeTraingle():
     global mode
-    mode = "Single"
+    mode = "Triangle"
     return
     
-def modeSweep():
-    endFreqEnt.config(state= "normal")
-    startFreqEnt.config(state= "normal")
-    singleFreqEnt.config(state= "disabled")
+def modeSaw():
     global mode 
-    mode = "Sweep"
+    mode = "Saw"
     return    
 #--------------------------------------------------------------------------------#
 #main window
@@ -66,53 +95,35 @@ title.pack()
 mFrame = LabelFrame(win,text="Mode")
 mFrame.place(x=5,y=25,height=50,width=275)
 var = IntVar() 
-r1=Radiobutton(mFrame, text='Single frequency', variable=var, value=1,width=14,command=modeSingle).grid(row=0,column=0) 
-r2=Radiobutton(mFrame, text='Frequency sweep', variable=var, value=2,width=14,command=modeSweep).grid(row=0,column=1)
-#--------------------------------------------------------------------------------#
-#Amplitude 
-#gLabel=LabelFrame(win,text="General")
-#gLabel.place(x=5,y=75,height = 50,width=275)
-
-#amplitudeLab=Label(gLabel,text='Amplitude:')
-#amplitudeLab.place(x=5,y=0)
-
-#sb = Spinbox(gLabel, from_ = 1, to = 5) 
-#sb.place(x=100,y=0)
+r1=Radiobutton(mFrame, text='Traingle sweep', variable=var, value=1,width=14,command=modeTraingle).grid(row=0,column=0) 
+r2=Radiobutton(mFrame, text='Sawtooth sweep', variable=var, value=2,width=14,command=modeSaw).grid(row=0,column=1)
 
 #--------------------------------------------------------------------------------#
 #frequency sweep
 fsLf=LabelFrame(win,text="Frequency Sweep")
-fsLf.place(x=5,y=125,height=75,width=275)
+fsLf.place(x=5,y=90,height=110,width=275)
 
-startFreqLab=Label(fsLf,text='Start frequency:')
+startFreqLab=Label(fsLf,text='Start frequency (Hz):')
 startFreqLab.place(x=5, y=0)
 
-endFreqLab=Label(fsLf,text='End frequency:  ')
+endFreqLab=Label(fsLf,text='End frequency (Hz):  ')
 endFreqLab.place(x=5, y=30)
 
+startFreqLab=Label(fsLf,text='Sweep period (us):')
+startFreqLab.place(x=5, y=60)
+
 startFreqEnt = Entry(fsLf) 
-startFreqEnt.place(x=100, y=0) 
+startFreqEnt.place(x=120, y=0) 
 
 endFreqEnt = Entry(fsLf) 
-endFreqEnt.place(x=100, y=30)
+endFreqEnt.place(x=120, y=30)
 
-endFreqEnt.config(state= "disabled")
-startFreqEnt.config(state= "disabled")
-#-------------------------------------------------------------------------------#
-#single frequency
-sfLf=LabelFrame(win,text="Single Frequency")
-sfLf.place(x=5,y=200,height=50,width=275)
-
-singleFreqLab=Label(sfLf,text='Frequency:')
-singleFreqLab.place(x=5, y=0)
-
-singleFreqEnt = Entry(sfLf) 
-singleFreqEnt.place(x=100, y=0)
-singleFreqEnt.config(state= "disabled")
+periodFreqEnt = Entry(fsLf) 
+periodFreqEnt.place(x=120, y=60)
  
 #------------------------------------------------------------------------------#
 #button
-fsBtn = Button(win, text="run", command=fsCommand)
+fsBtn = Button(win, text="run", command=startCommand)
 fsBtn.place(x=50,y=250,width=100)
 #------------------------------------------------------------------------------#
 #button
